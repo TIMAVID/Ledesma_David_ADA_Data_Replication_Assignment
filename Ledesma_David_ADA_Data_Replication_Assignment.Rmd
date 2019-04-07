@@ -1,0 +1,227 @@
+---
+title: "Ledesma---David--ADA-DATA-REANALYSIS-ASSIGNMENT"
+author: "David Ledesma"
+date: "4/4/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+[Include a summary of the paper you are reanalyzing data from]
+
+## Visualization of Data
+```{r}
+library(curl)
+library(geomorph)
+f <- curl("https://raw.githubusercontent.com/TIMAVID/-Ledesma---David--ADA-DATA-REANALYSIS-ASSIGNMENT/master/agamid.TPS")
+raw_data <- readland.tps(f, specID = c("imageID"))
+plot(raw_data)
+head(raw_data)
+
+f2 <- curl("https://raw.githubusercontent.com/TIMAVID/-Ledesma---David--ADA-DATA-REANALYSIS-ASSIGNMENT/master/agamid.csv")
+agamid <- read.csv(f2, header = TRUE, sep = ",", stringsAsFactors = TRUE)
+head(agamid)
+```
+
+```{r}
+new <- list(land = raw_data,species = agamid$species,habitat = agamid$habit,clade = agamid$clade, specimen = agamid$specimen) 
+
+GPA_landmarks <- gpagen(new$land) # performs Generalized Procrustes analysis of landmarks and creates aligned Procrustes coordinates
+
+plot(GPA_landmarks) # vizualize Procrustes alligned landmarks
+
+gp <- as.factor(new$species) # creates factor defining species groups for PCA vizualization
+PCA<-plotTangentSpace(GPA_landmarks$coords, groups = gp, legend = TRUE) #Pricipal component analysis + vizualization
+
+gdf <- geomorph.data.frame(GPA_landmarks, species = new$species, habitat = new$habitat, clade = new$clade, specimen= new$specimen) # creates Geomorph data frame of landmarks combined with additional data
+
+```
+
+[Include a view of the first few lines of the data set plus exploratory data analysis - overview of descriptive statistics included in the paper, plots, etc.
+
+## Replications/Reanalysis
+
+### Examining allometry ###
+In order to quantify shape disparity between adults and juveniles in their sample, the authors split their sample into two groups: the smallest three specimens of each species and the largest three specimens of each species. The size of the specimens was determined by their centroid size derived from a Generalized Procrustes analysis. They used the fuction “morphol.disparity” in geomorph which calculates the Procrustes variance of each group (that is, calculating the variance using the Procrustes distances of each group). The variances are tested for significance by doing permutations that randomixe the rows of the shape matrix. 
+```{r}
+b <- cbind(names(GPA_landmarks$Csize), GPA_landmarks$Csize, new$species) # creates matrix combining specimen numbers, centroid sizes, and species
+b<-as.data.frame(b)
+# procedure for finding smallest three juveniles of each species and the largest three adults of each species based on centroid size
+library(dplyr)
+Adult_grp<- group_by(b, V3) %>%
+  mutate(rank = rank(desc(V2))) %>%
+  arrange(rank) %>% filter(rank <= 3)
+Juv_grp<- group_by(b, V3) %>%
+  mutate(rank = rank(order(V2))) %>%
+  arrange(rank) %>% filter(rank <= 3)
+```
+```{r}
+f3 <- curl("https://raw.githubusercontent.com/TIMAVID/-Ledesma---David--ADA-DATA-REANALYSIS-ASSIGNMENT/master/Adults2.tps")
+raw_data2 <- readland.tps(f3, specID = c("imageID")) #raw data of the smallest three juveniles of each species and the largest three adults of each species
+plot(raw_data2) 
+```
+```{r}
+n.rows <- 54 # procedure for creating a matrix that will be used for defining age classes
+n.cols <- 1
+n.e <- n.rows * n.cols
+my.matrix.2 <- matrix(rep(NA, n.e), ncol = n.cols)
+for (i in 1:n.cols){
+  for (j in 1:n.rows){
+    my.matrix.2[j,i] <- paste("adult")
+  }
+}
+my.matrix.3 <- matrix(rep(NA, n.e), ncol = n.cols)
+for (i in 1:n.cols){
+  for (j in 1:n.rows){
+    my.matrix.3[j,i] <- paste("juvenile")
+  }
+}
+my.matrix <- rbind(my.matrix.2, my.matrix.3) # create maxtrix of age classes corresponding to the specimens from raw_data2
+```
+```{r}
+GPA_ontogeny <- gpagen(raw_data2) # performs Generalized Procrustes analysis of landmarks
+
+gdf_ontogeny <- geomorph.data.frame(GPA_ontogeny, Age = my.matrix) # creates Geomorph data frame combinging GPA alligned landmarks with age classes
+
+morphol.disparity(coords ~ Csize, groups= ~Age, data = gdf_ontogeny, iter=999, print.progress = FALSE) # calculates Procrustes variance between adults and juveniles while accounting for group size. Uses absolute differences in variances to test for pairwise differences between groups. The statistical significance of the differences between groups is assessed using a randomised residual permutation test with "iter= #" specified
+age_grps <- as.factor(my.matrix) # creates factor defining age groups to be used for PCA
+PCA2<- plotTangentSpace(gdf_ontogeny$coords, groups = age_grps, legend = TRUE) # PCA
+```
+
+### Test for isometric growth ###
+In order to test whether any species exhibited isometric growth (growth without a change in shape), the authors performed a linear model regression of the log transformed centroid size (Csize) onto the shape for each species. Statistical significance was assesed through permutations with randomization of the residuals. 
+
+```{r}
+#makes new coordinate groups according to species
+group <- factor(paste(gdf$species))
+levels(group)
+new.coords_iso <- coords.subset(A = GPA_landmarks$coords, group = group)
+names(new.coords_iso) # see the list levels
+
+```
+
+```{r}
+#test for the association between centroid size and shape for each species
+barbata_landmarks <- gpagen(new.coords_iso$barbata,  print.progress = FALSE)
+barbata_df <- geomorph.data.frame(barbata_landmarks)
+barbata_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = barbata_df, iter = 999,  print.progress = FALSE) # two.d.array function converts a 3D array to a 2D array
+
+caudicinctus_landmarks <- gpagen(new.coords_iso$caudicinctus,  print.progress = FALSE)
+caudicinctus_df <- geomorph.data.frame(caudicinctus_landmarks)
+caudicinctus_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = caudicinctus_df, iter = 999,  print.progress = FALSE)
+
+cristatus_landmarks <- gpagen(new.coords_iso$cristatus,  print.progress = FALSE)
+cristatus_df <- geomorph.data.frame(cristatus_landmarks)
+cristatus_ios <- procD.lm(two.d.array(coords) ~ log(Csize), data = cristatus_df, iter = 999,  print.progress = FALSE)
+
+decresii_landmarks <- gpagen(new.coords_iso$decresii,  print.progress = FALSE)
+decresii_df <- geomorph.data.frame(decresii_landmarks)
+decresii_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = decresii_df, iter = 999,  print.progress = FALSE)
+
+diemensis_landmarks <- gpagen(new.coords_iso$diemensis,  print.progress = FALSE)
+diemensis_df <- geomorph.data.frame(diemensis_landmarks)
+diemensis_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = diemensis_df, iter = 999,  print.progress = FALSE)
+
+gilberti_landmarks <- gpagen(new.coords_iso$gilberti,  print.progress = FALSE)
+gilberti_df <- geomorph.data.frame(gilberti_landmarks)
+gilberti_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = gilberti_df, iter = 999,  print.progress = FALSE)
+
+horridus_landmarks <- gpagen(new.coords_iso$horridus,  print.progress = FALSE)
+horridus_df <- geomorph.data.frame(horridus_landmarks)
+horridus_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = horridus_df, iter = 999,  print.progress = FALSE)
+
+isolepis_landmarks <- gpagen(new.coords_iso$isolepis,  print.progress = FALSE)
+isolepis_df <- geomorph.data.frame(isolepis_landmarks)
+isolepis_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = isolepis_df, iter = 999,  print.progress = FALSE)
+
+kingii_landmarks <- gpagen(new.coords_iso$kingii,  print.progress = FALSE)
+kingii_df <- geomorph.data.frame(kingii_landmarks)
+kingii_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = kingii_df, iter = 999,  print.progress = FALSE)
+
+lesueurii_landmarks <- gpagen(new.coords_iso$lesueurii,  print.progress = FALSE)
+lesueurii_df <- geomorph.data.frame(lesueurii_landmarks)
+lesueurii_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = lesueurii_df, iter = 999,  print.progress = FALSE)
+
+longirostris_landmarks <- gpagen(new.coords_iso$longirostris,  print.progress = FALSE)
+longirostris_df <- geomorph.data.frame(longirostris_landmarks)
+longirostris_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = longirostris_df, iter = 999,  print.progress = FALSE)
+
+muricatus_landmarks <- gpagen(new.coords_iso$muricatus,  print.progress = FALSE)
+muricatus_df <- geomorph.data.frame(muricatus_landmarks)
+muricatus_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = muricatus_df, iter = 999,  print.progress = FALSE)
+
+nobbi_landmarks <- gpagen(new.coords_iso$nobbi,  print.progress = FALSE)
+nobbi_df <- geomorph.data.frame(nobbi_landmarks)
+nobbi_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = nobbi_df, iter = 999,  print.progress = FALSE)
+
+nuchalis_landmarks <- gpagen(new.coords_iso$nuchalis,  print.progress = FALSE)
+nuchalis_df <- geomorph.data.frame(nuchalis_landmarks)
+nuchalis_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = nuchalis_df, iter = 999,  print.progress = FALSE)
+
+reticulatus_landmarks <- gpagen(new.coords_iso$reticulatus,  print.progress = FALSE)
+reticulatus_df <- geomorph.data.frame(reticulatus_landmarks)
+reticulatus_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = reticulatus_df, iter = 999,  print.progress = FALSE)
+
+tetraporophora_landmarks <- gpagen(new.coords_iso$tetraporophora,  print.progress = FALSE)
+tetraporophora_df <- geomorph.data.frame(tetraporophora_landmarks)
+tetraporophora_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = tetraporophora_df, iter = 999,  print.progress = FALSE)
+
+vitticeps_landmarks <- gpagen(new.coords_iso$vitticeps,  print.progress = FALSE)
+vitticeps_df <- geomorph.data.frame(vitticeps_landmarks)
+vitticeps_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = vitticeps_df, iter = 999,  print.progress = FALSE)
+
+winneckei_landmarks <- gpagen(new.coords_iso$winneckei,  print.progress = FALSE)
+winneckei_df <- geomorph.data.frame(winneckei_landmarks)
+winneckei_iso <- procD.lm(two.d.array(coords) ~ log(Csize), data = winneckei_df, iter = 999,  print.progress = FALSE)
+```
+
+```{r}
+iso <- rbind(barbata_iso$aov.table[1,7], caudicinctus_iso$aov.table[1,7], cristatus_ios$aov.table[1,7], decresii_iso$aov.table[1,7], diemensis_iso$aov.table[1,7], 
+             gilberti_iso$aov.table[1,7], horridus_iso$aov.table[1,7], isolepis_iso$aov.table[1,7], kingii_iso$aov.table[1,7], lesueurii_iso$aov.table[1,7], longirostris_iso$aov.table[1,7], 
+             muricatus_iso$aov.table[1,7], nobbi_iso$aov.table[1,7],nuchalis_iso$aov.table[1,7], reticulatus_iso$aov.table[1,7], tetraporophora_iso$aov.table[1,7], vitticeps_iso$aov.table[1,7], winneckei_iso$aov.table[1,7])
+iso <- cbind(names(new.coords_iso), iso)
+colnames(iso) <- c("species", "P-value")
+iso
+```
+
+### Testing for ontogenetic allometric patterns among life habit groups ###
+In order to test whether different life habit types had significant differences in terms of ontogenetic allometric patterns, the authors performed a multivariate analysis of covariance. They did this with the function "procD.allometry" and specified a model that includes log transformed centroid size, life habit, and their interaction. Statistical significance was tested with randomised residual permutations and Goodall’s F-ratio test. 
+```{r}
+# The origional data "agamid" had Arboreal as one life habits; however, in the analyses they were treated as Semi-arboreal. The following code changes all Arboreal classifications to Semi-arboreal and creates a new data frame with this data.
+habit <- agamid$habit
+levels(habit) <- gsub("Arboreal", "Semi-arboreal", levels(habit))
+gdf2 <- geomorph.data.frame(GPA_landmarks, species = new$species, habitat = habit, clade = new$clade, specimen= new$specimen) # creates Geomorph data frame of landmarks combined with additional data
+```
+```{r}
+# the following code uses the "procD.lm" function to perform a MANCOVA with size, habitat, and their interaction as parameters 
+agamid_Allometry1 <-procD.lm(two.d.array(coords) ~ log(Csize) * habitat, data = gdf2, iter = 999, print.progress = FALSE) #
+summary(agamid_Allometry1)
+```
+
+```{r}
+# the following code uses the function "advanced.procD.lm" which performes a Procrustes ANOVA and calculates whether differences are significant through pairwise tests and permutations. 
+habit_allom <- advanced.procD.lm(f1= coords ~ log(Csize) * habitat,
+                         f2= ~log(Csize) + habitat, groups = ~ habitat,
+                         slope = ~ log(Csize), angle.type = "deg", iter = 999, data = gdf2, pc.shape = TRUE, print.progress = FALSE)
+summary(habit_allom)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Summary
+
+## References
