@@ -1,17 +1,19 @@
 ---
-title: "Ledesma---David--ADA-DATA-REANALYSIS-ASSIGNMENT"
+title: "Ledesma_David_ADA_DATA_REANALYSIS_ASSIGNMENT"
 author: "David Ledesma"
 date: "4/4/2019"
-output: html_document
+output:
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.path = "/Users/davidledesma/Documents/Data\ analysis\ course/Replication\ paper/img")
 ```
 
 ## Introduction
 
 [Include a summary of the paper you are reanalyzing data from]
+
 
 ## Visualization of Data
 ```{r}
@@ -37,9 +39,11 @@ plot(GPA_landmarks) # vizualize Procrustes alligned landmarks
 gp <- as.factor(new$species) # creates factor defining species groups for PCA vizualization
 PCA<-plotTangentSpace(GPA_landmarks$coords, groups = gp, legend = TRUE) #Pricipal component analysis + vizualization
 
-gdf <- geomorph.data.frame(GPA_landmarks, species = new$species, habitat = new$habitat, clade = new$clade, specimen= new$specimen) # creates Geomorph data frame of landmarks combined with additional data
-
 ```
+
+
+
+![Figure 1 from Gray et al. 2019](/Users/davidledesma/Development/Ledesma_David_ADA_Data_Replication_Assignment/PCA.png )
 
 [Include a view of the first few lines of the data set plus exploratory data analysis - overview of descriptive statistics included in the paper, plots, etc.
 
@@ -47,6 +51,7 @@ gdf <- geomorph.data.frame(GPA_landmarks, species = new$species, habitat = new$h
 
 ### Examining allometry ###
 In order to quantify shape disparity between adults and juveniles in their sample, the authors split their sample into two groups: the smallest three specimens of each species and the largest three specimens of each species. The size of the specimens was determined by their centroid size derived from a Generalized Procrustes analysis. They used the fuction “morphol.disparity” in geomorph which calculates the Procrustes variance of each group (that is, calculating the variance using the Procrustes distances of each group). The variances are tested for significance by doing permutations that randomixe the rows of the shape matrix. 
+
 ```{r}
 b <- cbind(names(GPA_landmarks$Csize), GPA_landmarks$Csize, new$species) # creates matrix combining specimen numbers, centroid sizes, and species
 b<-as.data.frame(b)
@@ -96,6 +101,8 @@ PCA2<- plotTangentSpace(gdf_ontogeny$coords, groups = age_grps, legend = TRUE) #
 In order to test whether any species exhibited isometric growth (growth without a change in shape), the authors performed a linear model regression of the log transformed centroid size (Csize) onto the shape for each species. Statistical significance was assesed through permutations with randomization of the residuals. 
 
 ```{r}
+gdf <- geomorph.data.frame(GPA_landmarks, species = new$species, habitat = new$habitat, clade = new$clade, specimen= new$specimen) # creates Geomorph data frame of landmarks combined with additional data
+
 #makes new coordinate groups according to species
 group <- factor(paste(gdf$species))
 levels(group)
@@ -202,22 +209,22 @@ agamid_Allometry1 <-procD.lm(two.d.array(coords) ~ log(Csize) * habitat, data = 
 summary(agamid_Allometry1)
 ```
 
+
+![Table S3 from Gray et al. 2019](/Users/davidledesma/Development/Ledesma_David_ADA_Data_Replication_Assignment/Table1.png )
+
 ```{r}
 # the following code uses the function "advanced.procD.lm" which performes a Procrustes ANOVA and calculates whether differences are significant through pairwise tests and permutations. 
-habit_allom <- advanced.procD.lm(f1= coords ~ log(Csize) * habitat,
-                         f2= ~log(Csize) + habitat, groups = ~ habitat,
-                         slope = ~ log(Csize), angle.type = "deg", iter = 999, data = gdf2, pc.shape = TRUE, print.progress = FALSE)
-summary(habit_allom)
+habit_allom <- advanced.procD.lm(f1= coords ~ log(Csize),
+                                 f2= ~NULL, groups = ~ habitat,
+                                 slope = ~ log(Csize), angle.type = "deg", iter = 999, data = gdf2, pc.shape = TRUE, print.progress = FALSE)
+
+data.frame(P_value_Angle = habit_allom$P.angles) 
+data.frame(P_value_Length = habit_allom$P.slopes.dist)
+
 ```
 
 
-
-
-
-
-
-
-
+![Table S4 from Gray et al. 2019](/Users/davidledesma/Development/Ledesma_David_ADA_Data_Replication_Assignment/Table2.png)
 
 
 
@@ -225,3 +232,5 @@ summary(habit_allom)
 ## Summary
 
 ## References
+
+Gray, J. A., E. Sherratt, M. N. Hutchinson, & M. E. Jones. 2019. Changes in ontogenetic patterns facilitate diversification in skull shape of Australian agamid lizards. BMC Evolutionary Biology 19:7. 
