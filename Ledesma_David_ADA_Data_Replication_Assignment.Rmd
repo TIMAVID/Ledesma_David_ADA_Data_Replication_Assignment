@@ -7,45 +7,52 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.path = "/Users/davidledesma/Documents/Data\ analysis\ course/Replication\ paper/img")
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Introduction
 
-[Include a summary of the paper you are reanalyzing data from]
+Gray et al. 2019 used geometric morphometrics to study morphological variation in the skulls of Australian agamid lizards. They were interested in testing whether diversity in skull shape can be attributed to heterochrony (change in the timing or rate of development) or is mainly a result of modifications to growth pathways. They tested whether ontogenetic trajectories are similar between species, if there is association between shape and phylogeny, and if growth patterns and life histories are correlated. 
+
+I chose to replicate three analyses looking at 1) whether different life stages (adult and juvenile) have different amounts of shape disparity between species 2) whether any species exhibit isometric growth (growth without change in shape) 3) the relationship between growth, shape change, and life history. 
+
+2D landmarks were placed on photographs of the skulls of 361 specimens spanning 18 species. 
 
 
 ## Visualization of Data
 ```{r}
 library(curl)
 library(geomorph)
-f <- curl("https://raw.githubusercontent.com/TIMAVID/-Ledesma---David--ADA-DATA-REANALYSIS-ASSIGNMENT/master/agamid.TPS")
-raw_data <- readland.tps(f, specID = c("imageID"))
+f <- curl("https://raw.githubusercontent.com/TIMAVID/Ledesma_David_ADA_Data_Replication_Assignment/master/agamid.TPS")
+raw_data <- readland.tps(f, specID = c("imageID")) # the function "readland.tps" reads the landmark data in tps format and returns a 3D array of the coordinate data
 plot(raw_data)
 head(raw_data)
 
-f2 <- curl("https://raw.githubusercontent.com/TIMAVID/-Ledesma---David--ADA-DATA-REANALYSIS-ASSIGNMENT/master/agamid.csv")
-agamid <- read.csv(f2, header = TRUE, sep = ",", stringsAsFactors = TRUE)
+f2 <- curl("https://raw.githubusercontent.com/TIMAVID/Ledesma_David_ADA_Data_Replication_Assignment/master/agamid.csv")
+agamid <- read.csv(f2, header = TRUE, sep = ",", stringsAsFactors = TRUE) # this is a matrix of each specimen with associated data about the species, genus, habit, and clade  
 head(agamid)
 ```
 
 ```{r}
-new <- list(land = raw_data,species = agamid$species,habitat = agamid$habit,clade = agamid$clade, specimen = agamid$specimen) 
-
+new <- list(land = raw_data,species = agamid$species,habitat = agamid$habit,clade = agamid$clade, specimen = agamid$specimen) # combines corrdinate data, species, specimen, habit, and clade data
+```
+Before the cooridinate data can be analyzed, they must be alligned and size must be accounted for. This is done with a Generalized Procrustes Analysis.
+```{r}
 GPA_landmarks <- gpagen(new$land) # performs Generalized Procrustes analysis of landmarks and creates aligned Procrustes coordinates
+
+new <- list(land = GPA_landmarks , species = agamid$species, habitat = agamid$habit, clade = agamid$clade, specimen = names(GPA_landmarks$Csize)) # the gpagen function changed some of names to lower case so new was remade with "names(GPA_landmarks$Csize"
 
 plot(GPA_landmarks) # vizualize Procrustes alligned landmarks
 
 gp <- as.factor(new$species) # creates factor defining species groups for PCA vizualization
-PCA<-plotTangentSpace(GPA_landmarks$coords, groups = gp, legend = TRUE) #Pricipal component analysis + vizualization
-
+PCA<-plotTangentSpace(GPA_landmarks$coords, axis1 = 1, axis2 = 2, groups = gp, legend = TRUE) #Pricipal component analysis + vizualization
+PCA$pc.summary
 ```
-
 
 
 ![Figure 1 from Gray et al. 2019](/Users/davidledesma/Development/Ledesma_David_ADA_Data_Replication_Assignment/PCA.png )
 
-[Include a view of the first few lines of the data set plus exploratory data analysis - overview of descriptive statistics included in the paper, plots, etc.
+A PCA serves as an exploratory data analysis of the morphospace of cranial shape variation. The points are color coded by species.  My replicated PCA plot is the same as the one published by Gray et al. 2019; however, mine seems to be flipped with respect to the PC2 axis. I'm not sure why this occurs and I was unable to flip my plot to match the published one. I  was also unable to figure out how to keep the legend from getting cut off in the plot. My PCA serves as adesprictive statistic by showing the variance explained by each PC axis which matches that reported in Gray et al. (2019). 
 
 ## Replications/Reanalysis
 
@@ -53,22 +60,112 @@ PCA<-plotTangentSpace(GPA_landmarks$coords, groups = gp, legend = TRUE) #Pricipa
 In order to quantify shape disparity between adults and juveniles in their sample, the authors split their sample into two groups: the smallest three specimens of each species and the largest three specimens of each species. The size of the specimens was determined by their centroid size derived from a Generalized Procrustes analysis. They used the fuction “morphol.disparity” in geomorph which calculates the Procrustes variance of each group (that is, calculating the variance using the Procrustes distances of each group). The variances are tested for significance by doing permutations that randomixe the rows of the shape matrix. 
 
 ```{r}
-b <- cbind(names(GPA_landmarks$Csize), GPA_landmarks$Csize, new$species) # creates matrix combining specimen numbers, centroid sizes, and species
-b<-as.data.frame(b)
-# procedure for finding smallest three juveniles of each species and the largest three adults of each species based on centroid size
-library(dplyr)
-Adult_grp<- group_by(b, V3) %>%
-  mutate(rank = rank(desc(V2))) %>%
+library(tidyverse)
+
+# Data Processing
+
+raw_data2 <- new 
+
+# replace the "land" array (16 x 2 x 361 dimensions) in rawData with a list of 361 16 x 2 arrays
+
+splitLand <- list(raw_data2)
+
+for (i in 1:361){
+  
+  splitLand[[i]] <-raw_data[1:16,1:2,i]
+  
+}
+
+raw_data2[["land"]] <- splitLand
+
+# Specify a vector of the specimen names you want to extract
+
+b <- data.frame(specimen = names(GPA_landmarks$Csize), size = (GPA_landmarks$Csize), species = (new$species)) # creates matrix combining specimen numbers, centroid sizes, and species
+
+Adult_grp<- group_by(b, species) %>% # procedure for finding smallest three juveniles of each species and the largest three adults of each species based on centroid size
+  mutate(rank = rank(-size)) %>%
   arrange(rank) %>% filter(rank <= 3)
-Juv_grp<- group_by(b, V3) %>%
-  mutate(rank = rank(order(V2))) %>%
+Juv_grp<- group_by(b, species) %>%
+  mutate(rank = rank(size)) %>%
   arrange(rank) %>% filter(rank <= 3)
+
+ab<-Adult_grp[order(Adult_grp$specimen),]
+ac<-Juv_grp[order(Juv_grp$specimen),]
+ad<- rbind(ab, ac)
+aa <- ad$specimen
+aa <- as.vector(aa)
+
+
+specimensToExtract <- c(aa)
+
+# Create a tibble of just specimen names from your dataset and add a row ID column
+
+new <- list(land = GPA_landmarks , species = agamid$species, habitat = agamid$habit, clade = agamid$clade, specimens = names(GPA_landmarks$Csize))
+
+specimens <- tibble(specimenName=as.character(new$specimen))
+
+specimens <- rowid_to_column(specimens, "ID")
+
+
+
+# Filter that tibble to include only the ones you want to extract
+
+specimens <- filter(specimens,specimenName %in% specimensToExtract)
+
+
+# Set up vectors of variables to pull out for each specimen
+
+land <- vector("list",nrow(specimens))
+
+species <- vector()
+
+habitat <- vector()
+
+clade <- vector()
+
+specimen <- vector()
+
+
+
+# Extract from rawData just the specimens for which you want data
+
+j <- 0
+
+for (i in specimens$ID){
+  
+  j <- j + 1
+  
+  land[[j]] <- raw_data2[["land"]][[i]]
+  
+  species <- c(species,as.character(raw_data2[["species"]][[i]]))
+  
+  habitat <- c(habitat,as.character(raw_data2[["habitat"]][[i]]))
+  
+  clade <- c(clade,as.character(raw_data2[["clade"]][[i]]))
+  
+  specimen <- c(specimen,as.character(raw_data2[["specimen"]][[i]]))
+  
+}
+
+
+# Assemble the extracted data into a format like that of your original dataset
+
+raw_data2 <- list("land"=unlist(land),"species"=as.factor(species),"habitat"=as.factor(habitat),"clade"=as.factor(clade),"specimen"=as.factor(specimen)) #raw data of the smallest three juveniles of each species and the largest three adults of each species
+
+
+
+# the lines below recast the list in "land" to the original array format and attributes
+
+dim(raw_data2$land) <- c(16,2,nrow(specimens))
+
+attributes(raw_data2$land)$dimnames[[3]] <- specimens$specimenName
+
 ```
+
 ```{r}
-f3 <- curl("https://raw.githubusercontent.com/TIMAVID/-Ledesma---David--ADA-DATA-REANALYSIS-ASSIGNMENT/master/Adults2.tps")
-raw_data2 <- readland.tps(f3, specID = c("imageID")) #raw data of the smallest three juveniles of each species and the largest three adults of each species
-plot(raw_data2) 
+plot(raw_data2$land) 
 ```
+
 ```{r}
 n.rows <- 54 # procedure for creating a matrix that will be used for defining age classes
 n.cols <- 1
@@ -85,16 +182,34 @@ for (i in 1:n.cols){
     my.matrix.3[j,i] <- paste("juvenile")
   }
 }
-my.matrix <- rbind(my.matrix.2, my.matrix.3) # create maxtrix of age classes corresponding to the specimens from raw_data2
+
+my.matrix <- rbind(my.matrix.2, my.matrix.3) # create maxtrix of age classes
+
+adult<- group_by(Adult_grp, species)
+adult<- (adult$specimen)
+adult<- as.character(adult)
+
+juvenile <- group_by(Juv_grp, species)
+juvenile<- (juvenile$specimen)
+juvenile<- as.character(juvenile)
+
+az <- c(adult, juvenile)
+
+wow<- list(specimen = az, age = as.factor(my.matrix))
+wow <- as.data.frame(wow)
+
+specimen <- as.data.frame(specimen)
+species_grps <- inner_join(specimen, wow)
+
 ```
 ```{r}
-GPA_ontogeny <- gpagen(raw_data2) # performs Generalized Procrustes analysis of landmarks
+GPA_ontogeny <- gpagen(raw_data2$land) # performs Generalized Procrustes analysis of landmarks
 
-gdf_ontogeny <- geomorph.data.frame(GPA_ontogeny, Age = my.matrix) # creates Geomorph data frame combinging GPA alligned landmarks with age classes
+gdf_ontogeny <- geomorph.data.frame(GPA_ontogeny, Age = species_grps$age) # creates Geomorph data frame combinging GPA alligned landmarks with age classes
 
 morphol.disparity(coords ~ Csize, groups= ~Age, data = gdf_ontogeny, iter=999, print.progress = FALSE) # calculates Procrustes variance between adults and juveniles while accounting for group size. Uses absolute differences in variances to test for pairwise differences between groups. The statistical significance of the differences between groups is assessed using a randomised residual permutation test with "iter= #" specified
 age_grps <- as.factor(my.matrix) # creates factor defining age groups to be used for PCA
-PCA2<- plotTangentSpace(gdf_ontogeny$coords, groups = age_grps, legend = TRUE) # PCA
+PCA2<- plotTangentSpace(gdf_ontogeny$coords, groups = species_grps$age, legend = TRUE) # PCA
 ```
 
 ### Test for isometric growth ###
@@ -218,9 +333,12 @@ habit_allom <- advanced.procD.lm(f1= coords ~ log(Csize),
                                  f2= ~NULL, groups = ~ habitat,
                                  slope = ~ log(Csize), angle.type = "deg", iter = 999, data = gdf2, pc.shape = TRUE, print.progress = FALSE)
 
-data.frame(P_value_Angle = habit_allom$P.angles) 
-data.frame(P_value_Length = habit_allom$P.slopes.dist)
 
+
+```
+```{r}
+data.frame(P_Angle = habit_allom$P.angles) 
+data.frame(P_Length = habit_allom$P.slopes.dist)
 ```
 
 
