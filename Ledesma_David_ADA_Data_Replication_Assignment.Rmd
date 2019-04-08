@@ -347,7 +347,7 @@ data.frame(P_Length = habit_allom$P.slopes.dist)
 
 
 
-## Summar
+## Summary
 
 ## References
 
