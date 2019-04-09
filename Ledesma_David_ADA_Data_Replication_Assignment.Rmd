@@ -216,6 +216,7 @@ morphol.disparity(coords ~ Csize, groups= ~Age, data = gdf_ontogeny, iter=999, p
 age_grps <- as.factor(my.matrix) # creates factor defining age groups to be used for PCA
 PCA2<- plotTangentSpace(gdf_ontogeny$coords, groups = species_grps$age, legend = TRUE) # PCA
 ```
+
 Gray et al. (2019) reported a significant difference in the amount of morphological disparity between species for each age group (P=.001). That is, adult species were found to be more variable in skull shape (Procrustes variance = 0.0148) than juvenile species (Procrustes variance = 0.0099). My result also show a significant difference between groups (P=.01), but I am unsure as to why this is different from the P value reported by Gray et al. (2019). The values that I get for procrustes variances for each group is similar to that reported by Gray et al. (2019). The PCA plot visually confirms that juvenile specimens have less variation in their skull shape compared to adult specimens.
 
 
