@@ -58,9 +58,12 @@ A PCA serves as an exploratory data analysis of the morphospace of cranial shape
 
 ### Examining allometry ###
 In order to quantify shape disparity between adults and juveniles in their sample, the authors split their sample into two groups: the smallest three specimens of each species and the largest three specimens of each species. The size of the specimens was determined by their centroid size derived from a Generalized Procrustes analysis. They used the fuction “morphol.disparity” in geomorph which calculates the Procrustes variance of each group (that is, calculating the variance using the Procrustes distances of each group). The variances are tested for significance by doing permutations that randomixe the rows of the shape matrix. 
-
 ```{r}
 library(tidyverse)
+```
+
+```{r}
+# I first had to subset the origional landmark data so that I only had data for the smallest three specimens of each species and the largest three specimens of each species. 
 
 # Data Processing
 
