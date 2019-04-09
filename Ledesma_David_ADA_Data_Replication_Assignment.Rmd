@@ -362,7 +362,7 @@ I obtained different P values than reported by Gray et al. (2019) for the differ
 
 ## Summary
 
-
+Overall, the project was fairly difficult to replicate. The analyses required a lot of data manipulation with complex data formats. Sometimes it was not clear to me how the authors input their models into the geomorph functions. Although in most cases my results were similar to the authors, in the case of looking at P values for differences in allometric slopes and trajectory lengths, my result differed from the authors.   
 
 ## References
 
